@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Like a Snake</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: black;
+            animation: moveBackground 5s linear infinite;
+            overflow: hidden;
+        }
+
+        @keyframes moveBackground {
+            from {
+                background-position: 0 0;
+            }
+            to {
+                background-position: 100% 100%;
+            }
+        }
+
+        .snake-segment {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: #27ae60;
+            border-radius: 50%;
+        }
+
+        .coin {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: gold;
+            border-radius: 50%;
+            animation: coinSpin 1.2s linear infinite;
+        }
+
+        .bonus-coin {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: crimson;
+            border-radius: 50%;
+            animation: bonusGlow 1s linear infinite;
+        }
+
+        @keyframes bonusGlow {
+            0% {
+                box-shadow: 0 0 10px crimson, 0 0 20px crimson;
+            }
+            100% {
+                box-shadow: 0 0 30px yellow, 0 0 60px yellow;
+            }
+        }
+
+        @keyframes coinSpin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 24px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .score.highlighted {
+            background-color: rgba(255, 215, 0, 0.7);
+            box-shadow: 0px 0px 10px gold;
+        }
+
+        .celebration {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 255, 0, 0.3);
+            animation: flashEffect 1s linear 3;
+            pointer-events: none;
+        }
+
+        @keyframes flashEffect {
+            0% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .message {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 50px;
+            color: white;
+            text-shadow: 0 0 10px yellow;
+            animation: messageEffect 1.5s ease-in-out;
+        }
+
+        @keyframes messageEffect {
+            0% {
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="coin" id="coin"></div>
+        <div class="score" id="score">Score: 0</div>
+    </div>
+
+    <audio id="coinSound" src="retro-coin-3-236679.mp3"></audio>
+    <audio id="bonusSound" src="coin-upaif-14631.mp3"></audio>
+
+    <script>
+        const gameContainer = document.querySelector('.game-container');
+        const coin = document.getElementById('coin');
+        const scoreElement = document.getElementById('score');
+        const coinSound = document.getElementById('coinSound');
+        const bonusSound = document.getElementById('bonusSound');
+
+        let posX = window.innerWidth / 2;
+        let posY = window.innerHeight / 2;
+        let snakeLength = 5; // Initial length of the snake
+        let snakeSegments = [];
+        let score = 0;
+        let velocityX = 0;
+        let velocityY = 0;
+        let snakeSpeed = 5; // Reduced initial speed
+        let bonusCoin = null; // Bonus coin element
+
+        // Function to create a new snake segment
+        function createSnakeSegment() {
+            const segment = document.createElement('div');
+            segment.classList.add('snake-segment');
+            gameContainer.appendChild(segment);
+            snakeSegments.push({ element: segment, x: posX, y: posY });
+        }
+
+        // Create initial snake segments
+        for (let i = 0; i < snakeLength; i++) {
+            createSnakeSegment();
+        }
+
+        // Set random position for the coin
+        function setRandomPosition(element) {
+            const x = Math.random() * (window.innerWidth - 30);
+            const y = Math.random() * (window.innerHeight - 30);
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+        }
+
+        // Initial coin position
+        setRandomPosition(coin);
+
+        // Handle player movement with arrow keys
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    velocityX = 0;
+                    velocityY = -snakeSpeed;
+                    break;
+                case 'ArrowDown':
+                    velocityX = 0;
+                    velocityY = snakeSpeed;
+                    break;
+                case 'ArrowLeft':
+                    velocityX = -snakeSpeed;
+                    velocityY = 0;
+                    break;
+                case 'ArrowRight':
+                    velocityX = snakeSpeed;
+                    velocityY = 0;
+                    break;
+            }
+        });
+
+        // Handle player movement with touch controls
+        function handleTouchStart(e) {
+            const touch = e.touches[0];
+            const x = touch.clientX;
+            const y = touch.clientY;
+
+            if (y < window.innerHeight / 2) {
+                if (x < window.innerWidth / 2) {
+                    // Up and Left
+                    velocityX = -snakeSpeed;
+                    velocityY = -snakeSpeed;
+                } else {
+                    // Up and Right
+                    velocityX = snakeSpeed;
+                    velocityY = -snakeSpeed;
+                }
+            } else {
+                if (x < window.innerWidth / 2) {
+                    // Down and Left
+                    velocityX = -snakeSpeed;
+                    velocityY = snakeSpeed;
+                } else {
+                    // Down and Right
+                    velocityX = snakeSpeed;
+                    velocityY = snakeSpeed;
+                }
+            }
+        }
+
+        document.addEventListener('touchstart', handleTouchStart);
+
+        // Check for collision with the coin or bonus
+        function checkCollision() {
+            const snakeHead = snakeSegments[0].element.getBoundingClientRect();
+            const coinRect = coin.getBoundingClientRect();
+
+            // Normal coin collision
+            if (
+                snakeHead.x < coinRect.x + coinRect.width &&
+                snakeHead.x + snakeHead.width > coinRect.x &&
+                snakeHead.y < coinRect.y + coinRect.height &&
+                snakeHead.height + snakeHead.y > coinRect.y
+            ) {
+                score += 1;
+                scoreElement.textContent = `Score: ${score}`;
+                scoreElement.classList.add('highlighted');
+                setTimeout(() => scoreElement.classList.remove('highlighted'), 300);
+                coinSound.play();
+
+                // Increase snake length
+                createSnakeSegment();
+                setRandomPosition(coin);
+
+                // Check for milestone bonuses
+                if (score % 20 === 0) {
+                    triggerMilestoneBonus();
+                }
+            }
+
+            // Bonus coin collision
+            if (bonusCoin) {
+                const bonusRect = bonusCoin.getBoundingClientRect();
+                if (
+                    snakeHead.x < bonusRect.x + bonusRect.width &&
+                    snakeHead.x + snakeHead.width > bonusRect.x &&
+                    snakeHead.y < bonusRect.y + bonusRect.height &&
+                    snakeHead.height + snakeHead.y > bonusRect.y
+                ) {
+                    score += 5;
+                    scoreElement.textContent = `Score: ${score}`;
+                    bonusSound.play();
+                    bonusCoin.remove();
+                    bonusCoin = null;
+                }
+            }
+        }
+
+        // Handle screen wrap for snake going off screen
+        function handleScreenWrap() {
+            if (posX < 0) {
+                posX = window.innerWidth; // Snake wraps to the right
+            } else if (posX > window.innerWidth) {
+                posX = 0; // Snake wraps to the left
+            }
+            if (posY < 0) {
+                posY = window.innerHeight; // Snake wraps to the bottom
+            } else if (posY > window.innerHeight) {
+                posY = 0; // Snake wraps to the top
+            }
+        }
+
+        // Trigger bonus and celebration on score milestones
+        function triggerMilestoneBonus() {
+            // Create bonus coin
+            bonusCoin = document.createElement('div');
+            bonusCoin.classList.add('bonus-coin');
+            gameContainer.appendChild(bonusCoin);
+            setRandomPosition(bonusCoin);
+
+            // Show celebration effect
+            const celebration = document.createElement('div');
+            celebration.classList.add('celebration');
+            gameContainer.appendChild(celebration);
+            setTimeout(() => celebration.remove(), 1000);
+
+            // Show message
+            const message = document.createElement('div');
+            message.classList.add('message');
+            message.textContent = `Milestone Reached! Score: ${score}`;
+            gameContainer.appendChild(message);
+            setTimeout(() => message.remove(), 1500);
+
+            // Increase speed after each milestone
+            snakeSpeed += 0.5;
+        }
+
+        // Update the snake's position
+        function updateSnakePosition() {
+            posX += velocityX;
+            posY += velocityY;
+
+            handleScreenWrap();
+
+            // Move the head
+            snakeSegments[0].x = posX;
+            snakeSegments[0].y = posY;
+
+            // Move each segment to the position of the previous one
+            for (let i = snakeSegments.length - 1; i > 0; i--) {
+                snakeSegments[i].x = snakeSegments[i - 1].x;
+                snakeSegments[i].y = snakeSegments[i - 1].y;
+            }
+
+            // Update the position of each segment in the DOM
+            snakeSegments.forEach((segment) => {
+                segment.element.style.left = `${segment.x}px`;
+                segment.element.style.top = `${segment.y}px`;
+            });
+
+            checkCollision();
+        }
+
+        // Resize game elements if the window is resized
+        window.addEventListener('resize', () => {
+            setRandomPosition(coin);
+        });
+
+        // Main game loop
+        function gameLoop() {
+            updateSnakePosition();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
